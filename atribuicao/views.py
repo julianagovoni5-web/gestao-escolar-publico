@@ -457,9 +457,15 @@ class AuditoriaInternaListView(ListView):
 
     def get_queryset(self):
         from django.db.models import Q
+        # O filtro abaixo garante a regra rígida: SEM ATA = SUMIR DA TABELA
         return MatriculaTurma.objects.filter(
             Q(ata_inicio__isnull=False) | Q(ata_encerramento__isnull=False)
-        ).select_related('atribuicao_funcao__pessoa', 'turma', 'ata_inicio', 'ata_encerramento').order_by('-data_inicio')
+        ).select_related(
+            'atribuicao_funcao__pessoa', 
+            'turma', 
+            'ata_inicio', 
+            'ata_encerramento'
+        ).order_by('-data_inicio')
 
 
 class IndicadoresQualidadeView(TemplateView):
@@ -508,3 +514,20 @@ class IndicadoresQualidadeView(TemplateView):
             context['total_contratos'] = 0
 
         return context
+
+def auditoria_interna_view(request):
+    """View responsável por alimentar a tabela de Auditoria Interna de Vínculos."""
+    # Buscamos todas as matrículas trazendo as tabelas relacionadas de uma vez só (alta performance)
+    movimentacoes = MatriculaTurma.objects.select_related(
+        'atribuicao_funcao', 
+        'turma',
+        'ata_inicio',
+        'ata_encerramento'
+    ).all()
+    
+    context = {
+        'movimentacoes': movimentacoes,
+    }
+    
+    # Certifique-se de que o caminho do template aponta para onde está o seu arquivo HTML da auditoria
+    return render(request, 'atribuicao/qualidade/auditoria.html', context)
