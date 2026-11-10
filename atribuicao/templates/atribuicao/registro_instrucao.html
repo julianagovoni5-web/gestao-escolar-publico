@@ -64,7 +64,7 @@
                         <td style="padding: 12px; font-size: 0.9rem;"><strong>{{ registro.data_instrucao|date:"d/m/Y" }}</strong></td>
                         <td style="padding: 12px; font-size: 0.9rem;">{{ registro.get_tipo_display }}</td>
                         <td style="padding: 12px; font-size: 0.9rem; text-align: center; font-weight: 600;">{{ registro.carga_horaria }}h</td>
-                        <td style="padding: 12px; font-size: 0.9rem; color: #334155;">{{ registro.conteudo|truncatechars:60 }}</td>
+                        <td style="padding: 12px; font-size: 0.9rem; color: #334155;">{{ registro.conteudo_programatico|truncatechars:60 }}</td>
                     </tr>
                     {% empty %}
                     <tr>

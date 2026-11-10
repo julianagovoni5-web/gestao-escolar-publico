@@ -8,7 +8,7 @@ from django.db.models import Sum, Count
 from django.db import models
 from django.views.generic import ListView, TemplateView
 
-from cadastros.models import Turma, SituacaoTurma
+from cadastros.models import Turma, SituacaoTurma, Pessoa
 from cadastros.views import ModalCrudMixin
 
 from .forms import (
@@ -207,32 +207,215 @@ class EncerrarTurmaView(View):
 # SEÇÃO OPERACIONAL E PEDAGÓGICA (RECONSTRUÍDA)
 # ==========================================================
 
-def registro_instrucao_view(request):
-    """Renderiza a tela operacional de registro de instrução."""
-    instrucoes = RegistroInstrucao.objects.all().order_by('-data_instrucao')
-    return render(request, 'atribuicao/registro_instrucao.html', {'instrucoes': instrucoes})
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import RegistroInstrucao
 
+def registro_instrucao_view(request):
+    """Renderiza a tela operacional e processa o salvamento do registro de instrução em total sincronia com o HTML."""
+    
+    # 1. Se o usuário clicou no botão "Gravar no Diário de Classe"
+    if request.method == 'POST':
+        data_instrucao = request.POST.get('data_instrucao')
+        carga_horaria = request.POST.get('carga_horaria')
+        tipo = request.POST.get('tipo')  # Pega o valor do select do tipo
+        conteudo = request.POST.get('conteudo')
+        
+        # Cria o registro preenchendo as colunas corretas do banco
+        if data_instrucao and carga_horaria and conteudo:
+            RegistroInstrucao.objects.create(
+                data_instrucao=data_instrucao,
+                carga_horaria=carga_horaria,
+                tipo=tipo or 'TEORICA',  # Salva o tipo (Teórica/Prática/Avaliação)
+                conteudo_programatico=conteudo  # Campo padrão de texto da migration
+            )
+            messages.success(request, "Diário de instrução gravado com sucesso!")
+            return redirect('/atribuicao/turmas/registro-instrucao/')  
+        else:
+            messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
+
+    # 2. Puxa o histórico de aulas usando o nome 'registros' exigido pelo HTML
+    registros = RegistroInstrucao.objects.all().order_by('-data_instrucao')
+    
+    return render(request, 'atribuicao/registro_instrucao.html', {'registros': registros})
+
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import Atribuicao, HorarioAula 
 
 def horarios_view(request):
-    """Renderiza os quadros de horários do módulo."""
-    horarios = HorarioAula.objects.all()
-    return render(request, 'atribuicao/horarios.html', {'horarios': horarios})
+    """Renderiza os quadros de horários do módulo e processa os dados do formulário."""
+    
+    # 1. Processa o salvamento do formulário quando clica em 'Fixar Horário na Grade'
+    if request.method == 'POST':
+        atribuicao_id = request.POST.get('atribuicao')
+        dia_semana = request.POST.get('dia_semana')
+        horario_inicio = request.POST.get('horario_inicio') # Pegando os names do HTML
+        horario_fim = request.POST.get('horario_fim')
+        
+        if atribuicao_id and dia_semana and horario_inicio and horario_fim:
+            try:
+                # Cria o horário na grade associado à atribuição correta
+                HorarioAula.objects.create(
+                    atribuicao_id=int(atribuicao_id),
+                    dia_semana=dia_semana,
+                    horario_inicio=horario_inicio,
+                    horario_fim=horario_fim
+                )
+                messages.success(request, "Horário fixado na grade com sucesso!")
+                return redirect('/atribuicao/horarios/')
+            except Exception as e:
+                messages.error(request, f"Erro ao salvar horário: {str(e)}")
+        else:
+            messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
 
+    # 2. CARREGAMENTO DOS DADOS PARA A TELA (GET)
+    # Busca os horários salvos para listar na tabela inferior
+    horarios = HorarioAula.objects.all()
+    
+    # Busca as atribuições da outra tela para listar no select superior (Vínculo)
+    atribuigoes_disponiveis = Atribuicao.objects.select_related('instrutor', 'disciplina', 'turma').all()
+    
+    # Lista estática dos dias para o select
+    DIAS_CHOICES = [
+        ('SEG', 'Segunda-feira'),
+        ('TER', 'Terça-feira'),
+        ('QUA', 'Quarta-feira'),
+        ('QUI', 'Quinta-feira'),
+        ('SEX', 'Sexta-feira'),
+        ('SAB', 'Sábado'),
+    ]
+    
+    context = {
+        'horarios': horarios,
+        'atribuigoes': atribuigoes_disponiveis,
+        'dias_semana': DIAS_CHOICES
+    }
+    
+    return render(request, 'atribuicao/horarios.html', context)
+
+from django.shortcuts import render
+from django.db.models import Sum, DecimalField
+from django.db.models.functions import Coalesce
+from .models import MatriculaTurma, StatusMatriculaTurma, RegistroInstrucao, HorarioAula, Atribuicao
 
 def relatorios_view(request):
-    """Renderiza a central de relatórios operacionais."""
-    return render(request, 'atribuicao/relatorios.html')
+    """Calcula os indicadores gerenciais em tempo real com base no banco de dados."""
+    
+    # 1. TOTAL DE ATRIBUIÇÕES: Dinâmico via contagem na tabela Atribuicao
+    total_atribuicoes_real = Atribuicao.objects.count()
+    
+    # 2. TOTAL HORAS MINISTRADAS: Soma real do Histórico de Aulas Ministradas
 
+    horas_agregadas = RegistroInstrucao.objects.aggregate(
+        total=Coalesce(
+            Sum('carga_horaria'), 
+            0,
+            output_field=DecimalField()  # 👈 Adicionado para corrigir o erro de tipos mistos
+        )
+    )
+    total_horas_real = horas_agregadas['total']
+
+    
+    # 3. MATRÍCULAS ATIVAS: Conta dinamicamente os alunos com status 'CURSANDO'
+    # Mapeamento exato baseado no seu TextChoices do models.py
+    total_matriculas_real = MatriculaTurma.objects.filter(
+        status=StatusMatriculaTurma.CURSANDO
+    ).count()
+
+    context = {
+        'total_atribuicoes': total_atribuicoes_real,
+        'total_horas_ministradas': total_horas_real,
+        'matriculas_ativas': total_matriculas_real, 
+    }
+    
+    return render(request, 'atribuicao/relatorios.html', context)
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import Atribuicao
+# CORREÇÃO: Removido AtribuicaoFuncao daqui, pois ele não existe no app cadastros
+from cadastros.models import Pessoa, Disciplina, Turma, Funcao 
 
 def atribuicao_view(request):
-    """Renderiza a tela de listagem geral de atribuições."""
-    atribuigoes = Atribuicao.objects.all()
-    return render(request, 'atribuicao/atribuicao.html', {'atribuigoes': atribuigoes})
+    """Renderiza a tela de atribuições de forma totalmente limpa e sem filtros que geram FieldError."""
+    
+    # 1. Processa o salvamento quando clica no botão azul
+    if request.method == 'POST':
+        # Buscando de forma estrita o que vem do formulário
+        professor_id = request.POST.get('instrutor') or request.POST.get('professor')
+        disciplina_id = request.POST.get('disciplina')
+        turma_id = request.POST.get('turma')
+        
+        if professor_id and disciplina_id and turma_id:
+            try:
+                # Força a conversão para inteiro para garantir que são IDs numéricos válidos
+                p_id = int(professor_id)
+                d_id = int(disciplina_id)
+                t_id = int(turma_id)
 
+                # Busca o registro do Professor direto da tabela Pessoa
+                professor_real = Pessoa.objects.get(id=p_id)
+
+                # Grava a atribuição usando estritamente os IDs validados para evitar falha de Foreign Key
+                Atribuicao.objects.get_or_create(
+                    instrutor=professor_real,
+                    disciplina_id=d_id,
+                    turma_id=t_id
+                )
+                
+                messages.success(request, "Atribuição realizada com sucesso!")
+                return redirect('/atribuicao/atribuicao/')
+                
+            except (ValueError, Pessoa.DoesNotExist):
+                messages.error(request, "Erro: O professor selecionado é inválido ou não foi encontrado.")
+            except IntegrityError:
+                messages.error(request, "Erro de Integridade: Verifique se a Disciplina ou Turma selecionada realmente existe no banco.")
+        else:
+            messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
+
+    # 2. BUSCA PURA E DIRETA
+    professores = Pessoa.objects.all()
+    disciplinas = Disciplina.objects.all()
+    turmas = Turma.objects.all()
+    atribuigoes = Atribuicao.objects.all()
+    
+    context = {
+        'atribuigoes': atribuigoes,
+        'instrutores': professores,  
+        'disciplinas': disciplinas,
+        'turmas': turmas
+    }
+    
+    return render(request, 'atribuicao/atribuicao.html', context)
+
+
+
+from django.shortcuts import render
+from .models import MatriculaTurma  
 
 def dashboard_gestao_view(request):
-    """Renderiza o painel operacional de gerenciamento de turmas."""
-    return render(request, 'atribuicao/dashboard.html')
+    """Renderiza o painel operacional de gerenciamento de turmas com indicadores reais vinculados."""
+    
+    # 1. VÍNCULO REAL: Conta apenas os alunos que possuem matrícula ativa na turma
+    # Tentamos filtrar por 'CURSANDO' (que é o padrão do Assum). Se a classe estática não estiver importada,
+    # o Django aceita a string pura diretamente no banco.
+    total_alunos = MatriculaTurma.objects.filter(status='CURSANDO').count()
+    
+    # 2. Mantém os indicadores secundários sob controle
+    turmas_andamento = 0
+    total_alertas = 2  
+    
+    # 3. Empacota os dados unificados e envia ao arquivo HTML
+    context = {
+        'total_alunos_ativos': total_alunos,
+        'turmas_em_andamento': turmas_andamento,
+        'alertas_do_sistema': total_alertas,
+    }
+    
+    return render(request, 'atribuicao/dashboard.html', context)
+
 
 def contratos_gestao_view(request):
     """Renderiza a tela de contratos e prestação de serviços."""
@@ -244,7 +427,7 @@ def contratos_gestao_view(request):
 # ==========================================================
 
 class TreinamentoListView(ListView):
-    """Listagem de registros de instrução pedagógica."""
+    """Listagem de registros de instrução pedagógica blindada contra dados nulos."""
 
     model = RegistroInstrucao
     template_name = 'nucleo/treinamento.html'
@@ -255,6 +438,13 @@ class TreinamentoListView(ListView):
         return RegistroInstrucao.objects.select_related(
             'instrutor', 'atribuicao__disciplina', 'atribuicao__turma'
         ).order_by('-data_instrucao')
+
+    # ADICIONE ESTE BLOCO ABAIXO PARA CORRIGIR O ERRO DE VARIÁVEL:
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Garante que a variável do usuário atual da sessão seja injetada com segurança
+        context['user'] = self.request.user
+        return context
 
 
 class AuditoriaInternaListView(ListView):

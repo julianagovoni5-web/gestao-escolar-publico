@@ -16,7 +16,7 @@
                         <label for="id_atribuicao" class="form-label font-weight-bold">Vínculo (Atribuição) {% indicador_obrigatorio %}</label>
                         <select id="id_atribuicao" name="atribuicao" class="form-control form-select" required>
                             <option value="">Selecione a disciplina e o instrutor...</option>
-                            {% for a in atribuigoes %} <option value="{{ a.id }}">{{ a.disciplina.nome }} - {{ a.instrutor.username }} ({{ a.turma.nome }})</option> {% endfor %}
+                            {% for a in atribuigoes %} <option value="{{ a.id }}">{{ a.disciplina.nome }} - {{ a.instrutor.nome_completo }} ({{ a.turma.nome }})</option> {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">

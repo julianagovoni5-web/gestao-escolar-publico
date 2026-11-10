@@ -16,7 +16,7 @@
                         <label for="id_instrutor" class="form-label font-weight-bold">Instrutor / Professor {% indicador_obrigatorio %}</label>
                         <select id="id_instrutor" name="instrutor" class="form-control form-select" required>
                             <option value="">Selecione um instrutor...</option>
-                            {% for i in instrutores %} <option value="{{ i.id }}">{{ i.username }}</option> {% endfor %}
+                            {% for i in instrutores %} <option value="{{ i.id }}">{{ i.nome_completo }}</option> {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
@@ -48,7 +48,7 @@
                     </thead>
                     <tbody>
                         {% for a in atribuigoes %}
-                        <tr><td>{{ a.instrutor.username }}</td><td>{{ a.disciplina.nome }}</td><td><span class="badge bg-secondary">{{ a.turma.nome }}</span></td></tr>
+                        <tr><td>{{ a.instrutor.nome_completo }}</td><td>{{ a.disciplina.nome }}</td><td><span class="badge bg-secondary">{{ a.turma.nome }}</span></td></tr>
                         {% empty %}
                         <tr><td colspan="3" class="text-center text-muted">Nenhuma atribuição realizada até o momento.</td></tr>
                         {% endfor %}

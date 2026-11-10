@@ -98,9 +98,10 @@ class Turma(models.Model):
 
 # 1. MODELO DE ATRIBUIÇÃO
 class Atribuicao(models.Model):
-    instrutor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='atribuigoes')
-    disciplina = models.ForeignKey(Disciplina, on_delete=models.CASCADE)
-    turma = models.ForeignKey(Turma, on_delete=models.CASCADE)
+    # Mude o relacionamento de User para Pessoa
+    instrutor = models.ForeignKey('cadastros.Pessoa', on_delete=models.CASCADE, verbose_name="Instrutor")
+    disciplina = models.ForeignKey('cadastros.Disciplina', on_delete=models.CASCADE, verbose_name="Disciplina")
+    turma = models.ForeignKey('cadastros.Turma', on_delete=models.CASCADE, verbose_name="Turma")
     ano_letivo = models.IntegerField(default=2026)
 
     class Meta:
@@ -108,7 +109,7 @@ class Atribuicao(models.Model):
         unique_together = ('instrutor', 'disciplina', 'turma', 'ano_letivo')
 
     def __str__(self):
-        return f"{self.instrutor.username} - {self.disciplina.nome} ({self.turma.nome})"
+        return f"{self.instrutor.nome_completo} - {self.disciplina.nome} ({self.turma.nome})"
 
 # 2. MODELO DE HORÁRIOS
 class HorarioAula(models.Model):

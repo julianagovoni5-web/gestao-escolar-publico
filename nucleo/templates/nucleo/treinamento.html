@@ -22,7 +22,14 @@
                     {% for inst in instrucoes %}
                     <tr>
                         <td>{{ inst.data_instrucao|date:"d/m/Y" }}</td>
-                        <td class="fw-semibold text-secondary">{{ inst.instrutor.get_full_name|default:inst.instrutor.username }}</td>
+                                                <td class="fw-semibold text-secondary">
+                            {% if inst.instrutor %}
+                                {{ inst.instrutor.get_full_name|default:inst.instrutor.username }}
+                            {% else %}
+                                <span class="text-muted font-italic small">Não Informado</span>
+                            {% endif %}
+                        </td>
+
                         <td>{{ inst.atribuicao.disciplina.nome }} <small class="text-muted">({{ inst.atribuicao.turma.nome }})</small></td>
                         <td><span class="badge {% if inst.tipo == 'Prática' %}bg-success{% else %}bg-info{% endif %}">{{ inst.tipo }}</span></td>
                         <td class="fw-bold">{{ inst.carga_horaria }}h</td>
