@@ -32,7 +32,7 @@
             <li>
               {% if item.url_name %}
               <a href="{% url item.url_name %}" class="{% if item.ativo %}ativo{% endif %}"{% if item.ativo %} aria-current="page"{% endif %}>{{ item.label }}</a>
-              {% else %}
+                            {% else %}
               <a href="{% url 'em-construcao' chave=item.chave %}" class="{% if item.ativo %}ativo{% endif %}"{% if item.ativo %} aria-current="page"{% endif %}>{{ item.label }}</a>
               {% endif %}
             </li>

@@ -42,7 +42,6 @@ MENU_NAVEGACAO = [   {
         "itens": [
             {"label": "Treinamento", "url_name": "qualidade-treinamento", "chave": "treinamento"},
             {"label": "Auditoria Interna", "url_name": "qualidade-auditoria", "chave": "auditoria-interna"},
-            {"label": "Indicadores de Qualidade", "url_name": "qualidade-indicadores", "chave": "indicadores-qualidade"}
         ]
     },
 
