@@ -4,7 +4,8 @@ from .views import (
     ExcluirMatriculaTurmaView, FinalizarPlanejamentoView, EditarStatusMatriculaView,
     RevisarAprovacaoView, EncerrarTurmaView,
     registro_instrucao_view, horarios_view, relatorios_view, atribuicao_view, dashboard_gestao_view, contratos_gestao_view,
-    TreinamentoListView, AuditoriaInternaListView, IndicadoresQualidadeView
+    TreinamentoListView, AuditoriaInternaListView, IndicadoresQualidadeView,
+    exportar_auditoria_pdf 
 )
 
 urlpatterns = [
@@ -32,4 +33,5 @@ urlpatterns = [
     path('qualidade/treinamento/', TreinamentoListView.as_view(), name='qualidade-treinamento'),
     path('qualidade/auditoria/', AuditoriaInternaListView.as_view(), name='qualidade-auditoria'),
     path('qualidade/indicadores-qualidade/', IndicadoresQualidadeView.as_view(), name='qualidade-indicadores'),
+    path('relatorios/exportar-pdf/', exportar_auditoria_pdf, name='exportar-atribuicao-pdf'),
 ]

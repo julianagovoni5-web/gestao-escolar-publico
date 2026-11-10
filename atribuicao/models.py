@@ -206,3 +206,24 @@ class ContratoFinanceiro(models.Model):
     def __str__(self):
         credor = self.instrutor.get_full_name() if self.instrutor else self.credor_razao_social
         return f"Contrato {self.numero_contrato} - {credor}"
+
+class AuditoriaVinculo(models.Model):
+    # Passamos o nome entre aspas 'MatriculaTurma' para que o Django encontre o modelo mesmo estando acima no arquivo
+    matricula_turma = models.ForeignKey('MatriculaTurma', on_delete=models.CASCADE, verbose_name="Matrícula/Aluno")
+    ata_inicial = models.CharField(max_length=50, blank=True, null=True, verbose_name="Ata Inicial")
+    ata_encerramento = models.CharField(max_length=50, blank=True, null=True, verbose_name="Ata Encerramento")
+    
+    # Utiliza as opções que descobrimos na sua classe StatusMatriculaTurma
+    status_final = models.CharField(
+        max_length=30, 
+        choices=StatusMatriculaTurma.choices, 
+        default=StatusMatriculaTurma.CURSANDO
+    )
+    data_registro = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-data_registro']
+        verbose_name = "Auditoria de Vínculo"
+
+    def __str__(self):
+        return f"Auditoria - {self.matricula_turma_id} - Status: {self.status_final}"

@@ -531,3 +531,61 @@ def auditoria_interna_view(request):
     
     # Certifique-se de que o caminho do template aponta para onde está o seu arquivo HTML da auditoria
     return render(request, 'atribuicao/qualidade/auditoria.html', context)
+
+import io
+from django.http import FileResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from .models import MatriculaTurma
+
+def exportar_auditoria_pdf(request):
+    """Gera um documento PDF oficial contendo o histórico de vínculos escolar."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    
+    # Cabeçalho do PDF
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, 750, "SISTEMA DE GESTÃO ESCOLAR DA EMCA")
+    c.setFont("Helvetica", 12)
+    c.drawString(50, 730, "Relatório Consolidado de Atribuição e Vínculos")
+    c.setLineWidth(1)
+    c.line(50, 715, 550, 715)
+    
+    # Títulos da Tabela do PDF
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, 690, "Aluno")
+    c.drawString(220, 690, "Turma")
+    c.drawString(350, 690, "Ata Inicial")
+    c.drawString(450, 690, "Status")
+    c.line(50, 680, 550, 680)
+    
+    # Puxa os dados reais cadastrados
+    movimentacoes = MatriculaTurma.objects.select_related(
+        'atribuicao_funcao__pessoa', 'turma', 'ata_inicio'
+    ).all().order_by('-data_inicio')
+    
+    y = 660
+    c.setFont("Helvetica", 9)
+    
+    for mov in movimentacoes:
+        if y < 50:
+            c.showPage()
+            y = 750
+            
+        # Tratamento de segurança para os nomes
+        nome = mov.atribuicao_funcao.pessoa.nome_completo[:30] if hasattr(mov.atribuicao_funcao.pessoa, 'nome_completo') else str(mov.atribuicao_funcao.pessoa)[:30]
+        turma = mov.turma.nome[:25]
+        ata = mov.ata_inicio.numero if mov.ata_inicio else "—"
+        status = mov.get_status_display()
+        
+        c.drawString(50, y, nome)
+        c.drawString(220, y, turma)
+        c.drawString(350, y, ata)
+        c.drawString(450, y, status)
+        y -= 20
+        
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    
+    return FileResponse(buf, as_attachment=True, filename='Relatorio_Consolidado_EMCA.pdf')
