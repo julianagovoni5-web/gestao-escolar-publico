@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -207,90 +208,168 @@ class EncerrarTurmaView(View):
 # SEÇÃO OPERACIONAL E PEDAGÓGICA (RECONSTRUÍDA)
 # ==========================================================
 
+from decimal import Decimal, InvalidOperation
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from .models import RegistroInstrucao
+from .models import RegistroInstrucao, Atribuicao
+from cadastros.models import SituacaoTurma
+
 
 def registro_instrucao_view(request):
-    """Renderiza a tela operacional e processa o salvamento do registro de instrução em total sincronia com o HTML."""
+    """Renderiza a tela operacional e processa o diário de classe vinculado à atribuição oficial."""
     
-    # 1. Se o usuário clicou no botão "Gravar no Diário de Classe"
+    # Busca apenas atribuições válidas (turmas não encerradas e docentes ativos)
+    atribuigoes_validas = Atribuicao.objects.select_related(
+        'instrutor', 'disciplina', 'turma'
+    ).exclude(
+        turma__situacao=SituacaoTurma.ENCERRADA
+    ).filter(
+        instrutor__ativo=True,
+        instrutor__atribuicoes__situacao='ATIVO',
+        instrutor__atribuicoes__funcao__categoria='DOCENTE'
+    ).distinct().order_by('turma__nome', 'disciplina__nome')
+
+    # 1. Processa o salvamento do Diário de Classe
     if request.method == 'POST':
+        atribuicao_id = request.POST.get('atribuicao')
         data_instrucao = request.POST.get('data_instrucao')
         carga_horaria = request.POST.get('carga_horaria')
-        tipo = request.POST.get('tipo')  # Pega o valor do select do tipo
+        tipo = request.POST.get('tipo')
         conteudo = request.POST.get('conteudo')
         
-        # Cria o registro preenchendo as colunas corretas do banco
-        if data_instrucao and carga_horaria and conteudo:
-            RegistroInstrucao.objects.create(
-                data_instrucao=data_instrucao,
-                carga_horaria=carga_horaria,
-                tipo=tipo or 'TEORICA',  # Salva o tipo (Teórica/Prática/Avaliação)
-                conteudo_programatico=conteudo  # Campo padrão de texto da migration
-            )
-            messages.success(request, "Diário de instrução gravado com sucesso!")
-            return redirect('/atribuicao/turmas/registro-instrucao/')  
-        else:
-            messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
+        if atribuicao_id and data_instrucao and carga_horaria and conteudo:
+            try:
+                # Valida a carga horária (evita valores negativos, zerados ou absurdos como 50h/dia)
+                carga_decimal = Decimal(carga_horaria.replace(',', '.'))
+                if carga_decimal <= 0 or carga_decimal > 12:
+                    messages.error(request, "Erro: A carga horária diária deve ser maior que 0 e no máximo 12 horas.")
+                    return redirect('registro_instrucao')
 
-    # 2. Puxa o histórico de aulas usando o nome 'registros' exigido pelo HTML
-    registros = RegistroInstrucao.objects.all().order_by('-data_instrucao')
+                # Garante que a atribuição selecionada é válida
+                atribuicao_obj = atribuigoes_validas.get(id=int(atribuicao_id))
+
+                # Padroniza o valor de 'tipo' para bater com TIPO_CHOICES do models.py
+                tipo_padronizado = 'Prática' if tipo in ['Prática', 'PRATICA'] else 'Teórica'
+
+                RegistroInstrucao.objects.create(
+                    atribuicao=atribuicao_obj,
+                    data_instrucao=data_instrucao,
+                    carga_horaria=carga_decimal,
+                    tipo=tipo_padronizado,
+                    conteudo_programatico=conteudo.strip()
+                )
+                messages.success(request, "Diário de instrução vinculado e gravado com sucesso!")
+                return redirect('registro_instrucao')
+
+            except Atribuicao.DoesNotExist:
+                messages.error(request, "Erro: O vínculo (Turma/Disciplina/Instrutor) selecionado é inválido.")
+            except (ValueError, InvalidOperation):
+                messages.error(request, "Erro: Informe uma carga horária numérica válida.")
+        else:
+            messages.error(request, "Por favor, preencha todos os campos obrigatórios, incluindo o vínculo da turma.")
+
+    # 2. Carrega o histórico trazendo os dados da atribuição vinculada
+    registros = RegistroInstrucao.objects.select_related(
+        'atribuicao__turma', 'atribuicao__disciplina', 'atribuicao__instrutor'
+    ).all().order_by('-data_instrucao')
     
-    return render(request, 'atribuicao/registro_instrucao.html', {'registros': registros})
+    context = {
+        'registros': registros,
+        'atribuigoes': atribuigoes_validas,
+    }
+    
+    return render(request, 'atribuicao/registro_instrucao.html', context)
+
 
 
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from .models import Atribuicao, HorarioAula 
+from .models import Atribuicao, HorarioAula
+from cadastros.models import SituacaoTurma
+
 
 def horarios_view(request):
-    """Renderiza os quadros de horários do módulo e processa os dados do formulário."""
+    """Renderiza os quadros de horários garantindo vínculos válidos e evitando choque de aulas."""
     
-    # 1. Processa o salvamento do formulário quando clica em 'Fixar Horário na Grade'
+    # Filtra apenas atribuições válidas: turmas não encerradas e docentes ativos
+    atribuigoes_validas = Atribuicao.objects.select_related(
+        'instrutor', 'disciplina', 'turma'
+    ).exclude(
+        turma__situacao=SituacaoTurma.ENCERRADA
+    ).filter(
+        instrutor__ativo=True,
+        instrutor__atribuicoes__situacao='ATIVO',
+        instrutor__atribuicoes__funcao__categoria='DOCENTE'
+    ).distinct().order_by('turma__nome', 'disciplina__nome')
+
+    # 1. Processa o salvamento do formulário
     if request.method == 'POST':
         atribuicao_id = request.POST.get('atribuicao')
         dia_semana = request.POST.get('dia_semana')
-        horario_inicio = request.POST.get('horario_inicio') # Pegando os names do HTML
+        horario_inicio = request.POST.get('horario_inicio')
         horario_fim = request.POST.get('horario_fim')
         
         if atribuicao_id and dia_semana and horario_inicio and horario_fim:
+            if horario_fim <= horario_inicio:
+                messages.error(request, "Erro: O horário de término deve ser maior que o horário de início.")
+                return redirect('horarios')
+
             try:
-                # Cria o horário na grade associado à atribuição correta
+                # Garante que a atribuição enviada pertence ao grupo válido
+                atribuicao_obj = atribuigoes_validas.get(id=int(atribuicao_id))
+
+                # Verifica choque de horário na mesma TURMA
+                choque_turma = HorarioAula.objects.filter(
+                    atribuicao__turma=atribuicao_obj.turma,
+                    dia_semana=dia_semana,
+                    horario_inicio__lt=horario_fim,
+                    horario_fim__gt=horario_inicio
+                ).exists()
+
+                if choque_turma:
+                    messages.error(request, f"Choque de horário: A turma {atribuicao_obj.turma.nome} já possui aula neste dia e horário.")
+                    return redirect('horarios')
+
+                # Verifica choque de horário do mesmo PROFESSOR em outra turma
+                choque_professor = HorarioAula.objects.filter(
+                    atribuicao__instrutor=atribuicao_obj.instrutor,
+                    dia_semana=dia_semana,
+                    horario_inicio__lt=horario_fim,
+                    horario_fim__gt=horario_inicio
+                ).exists()
+
+                if choque_professor:
+                    messages.error(request, f"Choque de horário: O instrutor {atribuicao_obj.instrutor.nome_completo} já está alocado neste horário.")
+                    return redirect('horarios')
+
+                # Salva o horário com segurança
                 HorarioAula.objects.create(
-                    atribuicao_id=int(atribuicao_id),
+                    atribuicao=atribuicao_obj,
                     dia_semana=dia_semana,
                     horario_inicio=horario_inicio,
                     horario_fim=horario_fim
                 )
                 messages.success(request, "Horário fixado na grade com sucesso!")
-                return redirect('/atribuicao/horarios/')
+                return redirect('horarios')
+
+            except Atribuicao.DoesNotExist:
+                messages.error(request, "Erro: O vínculo (atribuição) selecionado é inválido ou pertence a uma turma encerrada.")
             except Exception as e:
                 messages.error(request, f"Erro ao salvar horário: {str(e)}")
         else:
             messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
 
-    # 2. CARREGAMENTO DOS DADOS PARA A TELA (GET)
-    # Busca os horários salvos para listar na tabela inferior
-    horarios = HorarioAula.objects.all()
-    
-    # Busca as atribuições da outra tela para listar no select superior (Vínculo)
-    atribuigoes_disponiveis = Atribuicao.objects.select_related('instrutor', 'disciplina', 'turma').all()
-    
-    # Lista estática dos dias para o select
-    DIAS_CHOICES = [
-        ('SEG', 'Segunda-feira'),
-        ('TER', 'Terça-feira'),
-        ('QUA', 'Quarta-feira'),
-        ('QUI', 'Quinta-feira'),
-        ('SEX', 'Sexta-feira'),
-        ('SAB', 'Sábado'),
-    ]
+    # 2. Carrega apenas os horários de turmas ativas/planejadas para a tabela inferior
+    horarios = HorarioAula.objects.select_related(
+        'atribuicao__instrutor', 'atribuicao__disciplina', 'atribuicao__turma'
+    ).exclude(
+        atribuicao__turma__situacao=SituacaoTurma.ENCERRADA
+    ).order_by('dia_semana', 'horario_inicio')
     
     context = {
         'horarios': horarios,
-        'atribuigoes': atribuigoes_disponiveis,
-        'dias_semana': DIAS_CHOICES
+        'atribuigoes': atribuigoes_validas,
+        'dias_semana': HorarioAula.DIAS_SEMANA,
     }
     
     return render(request, 'atribuicao/horarios.html', context)
@@ -332,58 +411,67 @@ def relatorios_view(request):
     
     return render(request, 'atribuicao/relatorios.html', context)
 
+from django.db import IntegrityError
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .models import Atribuicao
-# CORREÇÃO: Removido AtribuicaoFuncao daqui, pois ele não existe no app cadastros
-from cadastros.models import Pessoa, Disciplina, Turma, Funcao 
+from cadastros.models import Pessoa, Disciplina, Turma, SituacaoTurma
+
 
 def atribuicao_view(request):
-    """Renderiza a tela de atribuições de forma totalmente limpa e sem filtros que geram FieldError."""
+    """Renderiza e processa as atribuições garantindo que apenas docentes ativos sejam vinculados."""
     
-    # 1. Processa o salvamento quando clica no botão azul
+    # Define a consulta oficial de docentes ativos (usada tanto no formulário quanto na validação do POST)
+    docentes_ativos = Pessoa.objects.filter(
+        ativo=True,
+        atribuicoes__situacao='ATIVO',
+        atribuicoes__funcao__categoria='DOCENTE'
+    ).distinct().order_by('nome_completo')
+
+    # 1. Processa o salvamento quando clica no botão
     if request.method == 'POST':
-        # Buscando de forma estrita o que vem do formulário
         professor_id = request.POST.get('instrutor') or request.POST.get('professor')
         disciplina_id = request.POST.get('disciplina')
         turma_id = request.POST.get('turma')
         
         if professor_id and disciplina_id and turma_id:
             try:
-                # Força a conversão para inteiro para garantir que são IDs numéricos válidos
                 p_id = int(professor_id)
                 d_id = int(disciplina_id)
                 t_id = int(turma_id)
 
-                # Busca o registro do Professor direto da tabela Pessoa
-                professor_real = Pessoa.objects.get(id=p_id)
+                # BLINDAGEM: Busca o professor SOMENTE dentro do grupo de docentes ativos
+                professor_real = docentes_ativos.get(id=p_id)
 
-                # Grava a atribuição usando estritamente os IDs validados para evitar falha de Foreign Key
-                Atribuicao.objects.get_or_create(
+                # Grava a atribuição ou avisa se já existir
+                _, criada = Atribuicao.objects.get_or_create(
                     instrutor=professor_real,
                     disciplina_id=d_id,
                     turma_id=t_id
                 )
                 
-                messages.success(request, "Atribuição realizada com sucesso!")
-                return redirect('/atribuicao/atribuicao/')
+                if criada:
+                    messages.success(request, "Atribuição realizada com sucesso!")
+                else:
+                    messages.warning(request, "Este professor já está atribuído a esta disciplina e turma.")
+                
+                return redirect('atribuicao')
                 
             except (ValueError, Pessoa.DoesNotExist):
-                messages.error(request, "Erro: O professor selecionado é inválido ou não foi encontrado.")
+                messages.error(request, "Erro: A pessoa selecionada não possui vínculo ativo como Docente.")
             except IntegrityError:
-                messages.error(request, "Erro de Integridade: Verifique se a Disciplina ou Turma selecionada realmente existe no banco.")
+                messages.error(request, "Erro de Integridade: Verifique se a Disciplina ou Turma selecionada é válida.")
         else:
             messages.error(request, "Por favor, preencha todos os campos obrigatórios.")
 
-    # 2. BUSCA PURA E DIRETA
-    professores = Pessoa.objects.all()
-    disciplinas = Disciplina.objects.all()
-    turmas = Turma.objects.all()
-    atribuigoes = Atribuicao.objects.all()
+    # 2. Carrega os dados filtrados para os seletores da tela
+    disciplinas = Disciplina.objects.filter(ativo=True).order_by('nome')
+    turmas = Turma.objects.exclude(situacao=SituacaoTurma.ENCERRADA).order_by('nome')
+    atribuigoes = Atribuicao.objects.select_related('instrutor', 'disciplina', 'turma').all()
     
     context = {
         'atribuigoes': atribuigoes,
-        'instrutores': professores,  
+        'instrutores': docentes_ativos,  
         'disciplinas': disciplinas,
         'turmas': turmas
     }
@@ -391,30 +479,38 @@ def atribuicao_view(request):
     return render(request, 'atribuicao/atribuicao.html', context)
 
 
-
+from django.urls import reverse
 from django.shortcuts import render
-from .models import MatriculaTurma  
+from .models import MatriculaTurma
+from cadastros.models import Turma, SituacaoTurma
 
 def dashboard_gestao_view(request):
-    """Renderiza o painel operacional de gerenciamento de turmas com indicadores reais vinculados."""
+    """Renderiza o painel operacional com monitoramento focado em turmas planejadas."""
     
-    # 1. VÍNCULO REAL: Conta apenas os alunos que possuem matrícula ativa na turma
-    # Tentamos filtrar por 'CURSANDO' (que é o padrão do Assum). Se a classe estática não estiver importada,
-    # o Django aceita a string pura diretamente no banco.
     total_alunos = MatriculaTurma.objects.filter(status='CURSANDO').count()
-    
-    # 2. Mantém os indicadores secundários sob controle
-    turmas_andamento = 0
-    total_alertas = 2  
-    
-    # 3. Empacota os dados unificados e envia ao arquivo HTML
+    turmas_andamento = Turma.objects.filter(situacao=SituacaoTurma.EM_ANDAMENTO).count()
+
+    # Lista dinâmica de alertas (focada apenas em planejamento pendente)
+    alertas = []
+
+    qtd_planejadas = Turma.objects.filter(situacao=SituacaoTurma.PLANEJADA).count()
+    if qtd_planejadas > 0:
+        alertas.append({
+            'modulo': 'Planejamento',
+            'cor': '#d97706',  # Laranja/Âmbar
+            'descricao': f'Existem {qtd_planejadas} turma(s) aguardando a efetivação e congelamento do planejamento curricular.',
+            'url_resolver': f"{reverse('lista-turmas')}?situacao=PLANEJADA"
+        })
+
     context = {
         'total_alunos_ativos': total_alunos,
         'turmas_em_andamento': turmas_andamento,
-        'alertas_do_sistema': total_alertas,
+        'alertas_do_sistema': len(alertas),
+        'lista_alertas': alertas,
     }
-    
+
     return render(request, 'atribuicao/dashboard.html', context)
+
 
 
 def contratos_gestao_view(request):

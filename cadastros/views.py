@@ -1275,6 +1275,12 @@ class ListaTurmasView(ListView):
         return Turma.objects.select_related('oferta_modulo', 'oferta_modulo__modulo').order_by(
             '-oferta_modulo__ano_letivo', 'oferta_modulo__modulo__nome', 'nome'
         )
+        # Filtra automaticamente se o usuário vier pelo clique no card do Dashboard
+        situacao = self.request.GET.get('situacao')
+        if situacao:
+            queryset = queryset.filter(situacao=situacao)
+            
+        return queryset
 
 
 # --- Ata + AtaPessoa (estrutura curricular, docs/33; docs/35) ---

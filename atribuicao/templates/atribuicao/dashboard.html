@@ -20,49 +20,62 @@
         </div>
 
         <!-- Card: Turmas em Andamento -->
-        <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 4px solid #10b981;">
-            <p style="color: #64748b; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin: 0 0 8px 0;">Turmas em Andamento</p>
-            <h3 style="color: #1e293b; font-size: 2.25rem; margin: 0; font-weight: 700;">{{ turmas_em_andamento }}</h3>
+<a href="{% url 'lista-turmas' %}?situacao=EM_ANDAMENTO" style="text-decoration: none; color: inherit; display: block;">
+    <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 4px solid #10b981; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;"
+         onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.08)';"
+         onmouseout="this.style.transform='none'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)';">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <p style="color: #64748b; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin: 0;">Turmas em Andamento</p>
+            <span style="color: #10b981; font-size: 0.875rem; font-weight: 600;">Ver →</span>
         </div>
+        <h3 style="color: #1e293b; font-size: 2.25rem; margin: 0; font-weight: 700;">{{ turmas_em_andamento }}</h3>
+    </div>
+</a>
+
 
         <!-- Card: Alertas/Pendências -->
-        <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 4px solid #ef4444;">
-            <p style="color: #64748b; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin: 0 0 8px 0;">Alertas do Sistema</p>
-            <h3 style="color: #1e293b; font-size: 2.25rem; margin: 0; font-weight: 700;">{{ alertas_pendentes }}</h3>
-        </div>
+        <a href="#acoes-urgentes" style="text-decoration: none; color: inherit; display: block;">
+            <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 4px solid #ef4444; cursor: pointer;">
+                <p style="color: #64748b; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; margin: 0 0 8px 0;">Alertas do Sistema</p>
+                <h3 style="color: #1e293b; font-size: 2.25rem; margin: 0; font-weight: 700;">{{ alertas_do_sistema }}</h3>
+            </div>
+        </a>
 
     </div>
 
     <!-- Tabela de Alertas e Atalhos de Ação Rápida -->
-    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <div id="acoes-urgentes" style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h3 style="color: #0f172a; margin: 0 0 20px 0; font-size: 1.2rem; font-weight: 600;">🔔 Ações Urgentes Recomendadas</h3>
         
-<div class="tabela-responsiva" tabindex="0" role="region" aria-label="Rolagem da tabela"><table style="width: 100%; border-collapse: collapse; text-align: left;">
-  <caption class="visualmente-oculto">Alertas e ações urgentes recomendadas</caption>
-            <thead>
-                <tr style="border-bottom: 2px solid #f1f5f9;">
-                    <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem;" scope="col">Módulo</th>
-                    <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem;" scope="col">Descrição do Alerta</th>
-                    <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem; text-align: right;" scope="col">Ação</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 16px 12px; font-weight: 600; color: #b45309; font-size: 0.9rem;">Planejamento</td>
-                    <td style="padding: 16px 12px; color: #334155; font-size: 0.9rem;">Existem turmas aguardando a efetivação e congelamento do planejamento curricular.</td>
-                    <td style="padding: 16px 12px; text-align: right;">
-                        <a aria-label="Resolver pendências de planejamento de turmas" href="#" style="background: #fef3c7; color: #b45309; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Resolver</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td style="padding: 16px 12px; font-weight: 600; color: #ef4444; font-size: 0.9rem;">Contratos</td>
-                    <td style="padding: 16px 12px; color: #334155; font-size: 0.9rem;">Há contratos gerenciais com parcelas vencidas no corrente mês técnico.</td>
-                    <td style="padding: 16px 12px; text-align: right;">
-                        <a href="{% url 'contratos' %}" style="background: #fee2e2; color: #ef4444; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Ver Contratos</a>
-                    </td>
-                </tr>
-            </tbody>
-        </table></div>
+        <div class="tabela-responsiva" tabindex="0" role="region" aria-label="Rolagem da tabela">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <caption class="visualmente-oculto">Alertas e ações urgentes recomendadas</caption>
+                <thead>
+                    <tr style="border-bottom: 2px solid #f1f5f9;">
+                        <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem;" scope="col">Módulo</th>
+                        <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem;" scope="col">Descrição do Alerta</th>
+                        <th style="padding: 12px; color: #475569; font-weight: 600; font-size: 0.9rem; text-align: right;" scope="col">Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alerta in lista_alertas %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 16px 12px; font-weight: 600; color: #b45309; font-size: 0.9rem;">{{ alerta.modulo }}</td>
+                        <td style="padding: 16px 12px; color: #334155; font-size: 0.9rem;">{{ alerta.descricao }}</td>
+                        <td style="padding: 16px 12px; text-align: right;">
+                            <a aria-label="Resolver pendência de {{ alerta.modulo }}" href="{{ alerta.url_resolver }}" style="background: #fef3c7; color: #b45309; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Resolver</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="padding: 24px 12px; text-align: center; color: #64748b; font-size: 0.9rem;">
+                            Nenhuma pendência urgente encontrada no momento.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
 </div>

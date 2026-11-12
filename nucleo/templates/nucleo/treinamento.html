@@ -6,40 +6,43 @@
 
     <div class="card shadow-sm border-0">
         <div class="table-responsive">
-<div class="tabela-responsiva" tabindex="0" role="region" aria-label="Rolagem da tabela"><table class="table table-hover align-middle mb-0">
-  <caption class="visualmente-oculto">Registros de treinamentos e instruções ministradas</caption>
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">Data</th>
-                        <th scope="col">Instrutor</th>
-                        <th scope="col">Disciplina / Turma</th>
-                        <th scope="col">Tipo</th>
-                        <th scope="col">Carga Horária</th>
-                        <th scope="col">Conteúdo Programático</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for inst in instrucoes %}
-                    <tr>
-                        <td>{{ inst.data_instrucao|date:"d/m/Y" }}</td>
-                                                <td class="fw-semibold text-secondary">
-                            {% if inst.instrutor %}
-                                {{ inst.instrutor.get_full_name|default:inst.instrutor.username }}
-                            {% else %}
-                                <span class="text-muted font-italic small">Não Informado</span>
-                            {% endif %}
-                        </td>
-
-                        <td>{{ inst.atribuicao.disciplina.nome }} <small class="text-muted">({{ inst.atribuicao.turma.nome }})</small></td>
-                        <td><span class="badge {% if inst.tipo == 'Prática' %}bg-success{% else %}bg-info{% endif %}">{{ inst.tipo }}</span></td>
-                        <td class="fw-bold">{{ inst.carga_horaria }}h</td>
-                        <td><small class="text-truncate d-inline-block" style="max-width: 250px;">{{ inst.conteudo_programatico }}</small></td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="6" class="text-center py-4 text-muted">Nenhum registro de instrução efetuado.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table></div>
+            <div class="tabela-responsiva" tabindex="0" role="region" aria-label="Rolagem da tabela">
+                <table class="table table-hover align-middle mb-0">
+                    <caption class="visualmente-oculto">Registros de treinamentos e instruções ministradas</caption>
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Data</th>
+                            <th scope="col">Instrutor</th>
+                            <th scope="col">Disciplina / Turma</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Carga Horária</th>
+                            <th scope="col">Conteúdo Programático</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inst in instrucoes %}
+                        <tr>
+                            <td>{{ inst.data_instrucao|date:"d/m/Y" }}</td>
+                            <td class="fw-semibold text-secondary">
+                                {% if inst.atribuicao and inst.atribuicao.instrutor %}
+                                    {{ inst.atribuicao.instrutor.nome_completo }}
+                                {% elif inst.instrutor %}
+                                    {{ inst.instrutor.get_full_name|default:inst.instrutor.username }}
+                                {% else %}
+                                    <span class="text-muted font-italic small">Não Informado</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ inst.atribuicao.disciplina.nome }} <small class="text-muted">({{ inst.atribuicao.turma.nome }})</small></td>
+                            <td><span class="badge {% if inst.tipo == 'Prática' %}bg-success{% else %}bg-info{% endif %}">{{ inst.tipo }}</span></td>
+                            <td class="fw-bold">{{ inst.carga_horaria }}h</td>
+                            <td><small class="text-truncate d-inline-block" style="max-width: 250px;">{{ inst.conteudo_programatico }}</small></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center py-4 text-muted">Nenhum registro de instrução efetuado.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
